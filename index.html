@@ -1,0 +1,945 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LoanCompare — Single Page Loan Comparison</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa6b2; --accent:#60a5fa; --good:#34d399; --bad:#fb7185; --glass: rgba(255,255,255,0.03);
+      --radius:12px; --gap:14px; font-family: Inter, system-ui, Segoe UI, Roboto, 'Helvetica Neue', Arial;
+    }
+    html,body{height:100%;}
+    body{margin:0;background:linear-gradient(180deg,#071029 0%, #07182b 60%);color:#e6f0f6;padding:28px;box-sizing:border-box}
+    h1{font-size:20px;margin:0 0 6px}
+    p.lead{color:var(--muted);margin:0 0 18px}.wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
+
+.main{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:18px;border-radius:var(--radius);box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+.side{background:var(--card);padding:18px;border-radius:var(--radius);box-shadow:0 6px 20px rgba(2,6,23,0.4)}
+
+.cards{display:flex;gap:12px;flex-wrap:wrap}
+.loan-card{flex:1 1 320px;background:var(--glass);padding:12px;border-radius:10px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+input[type=text], input[type=number], select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;box-sizing:border-box}
+.row{display:flex;gap:10px}
+.row > *{flex:1}
+.controls{display:flex;gap:8px;margin-top:8px}
+button{background:var(--accent);border:none;padding:10px 12px;border-radius:10px;color:#042036;cursor:pointer;font-weight:600}
+button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+.result{margin-top:14px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px}
+.tile b{display:block;font-size:18px}
+.compare-bar{height:18px;border-radius:9px;background:rgba(255,255,255,0.03);overflow:hidden;margin-top:12px}
+.compare-fill{height:100%;width:50%;background:linear-gradient(90deg,var(--good),var(--accent));}
+
+.small{font-size:12px;color:var(--muted)}
+
+table{width:100%;border-collapse:collapse;margin-top:10px}
+table th, table td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:right}
+table th{text-align:left;color:var(--muted);font-size:12px}
+
+.chart{display:flex;gap:8px;align-items:center}
+canvas{background:transparent}
+
+footer{margin-top:16px;color:var(--muted);font-size:12px}
+
+/* responsive */
+@media (max-width:1000px){.wrap{grid-template-columns:1fr;}}
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="main">
+      <h1>LoanCompare — Compare two loans instantly</h1>
+      <p class="lead">Enter loan details for each card. Supports Flat and Reducing (EMI) interest. Shows EMI, total interest, amortization schedule and a visual comparison.</p><div class="cards">
+    <div class="loan-card" id="cardA">
+      <h3>Loan A</h3>
+      <label>Principal (₹)</label>
+      <input type="number" id="A_principal" value="500000" min="0">
+
+      <div style="height:8px"></div>
+      <div class="row">
+        <div>
+          <label>Tenure</label>
+          <input type="number" id="A_tenure" value="60" min="1">
+          <div class="small">months</div>
+        </div>
+        <div>
+          <label>Interest Rate (%)</label>
+          <input type="number" id="A_rate" value="8.5" step="0.01" min="0">
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+      <label>Interest Type</label>
+      <select id="A_type">
+        <option value="reducing">Reducing (EMI)</option>
+        <option value="flat">Flat</option>
+        <option value="daily">Daily Reducing</option>
+      </select>
+
+      <div style="height:8px"></div>
+      <label>Processing fee (₹)</label>
+      <input type="number" id="A_fee" value="2000">
+
+      <div style="height:8px"></div>
+      <label>Insurance / Extra charges (₹)</label>
+      <input type="number" id="A_extra" value="0">
+
+      <div class="controls">
+        <button onclick="calculateAll()">Calculate</button>
+        <button class="secondary" onclick="fillExample('A')">Example</button>
+      </div>
+
+      <div class="result" id="A_result">
+        <div class="tile">
+          <div class="small">EMI / Monthly</div>
+          <b id="A_emi">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Interest</div>
+          <b id="A_totalInterest">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Payment</div>
+          <b id="A_totalPayment">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Effective Annual Cost</div>
+          <b id="A_effective">—</b>
+        </div>
+      </div>
+    </div>
+
+    <div class="loan-card" id="cardB">
+      <h3>Loan B</h3>
+      <label>Principal (₹)</label>
+      <input type="number" id="B_principal" value="500000" min="0">
+
+      <div style="height:8px"></div>
+      <div class="row">
+        <div>
+          <label>Tenure</label>
+          <input type="number" id="B_tenure" value="60" min="1">
+          <div class="small">months</div>
+        </div>
+        <div>
+          <label>Interest Rate (%)</label>
+          <input type="number" id="B_rate" value="9.5" step="0.01" min="0">
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+      <label>Interest Type</label>
+      <select id="B_type">
+        <option value="reducing">Reducing (EMI)</option>
+        <option value="flat">Flat</option>
+        <option value="daily">Daily Reducing</option>
+      </select>
+
+      <div style="height:8px"></div>
+      <label>Processing fee (₹)</label>
+      <input type="number" id="B_fee" value="1500">
+
+      <div style="height:8px"></div>
+      <label>Insurance / Extra charges (₹)</label>
+      <input type="number" id="B_extra" value="0">
+
+      <div class="controls">
+        <button onclick="calculateAll()">Calculate</button>
+        <button class="secondary" onclick="fillExample('B')">Example</button>
+      </div>
+
+      <div class="result" id="B_result">
+        <div class="tile">
+          <div class="small">EMI / Monthly</div>
+          <b id="B_emi">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Interest</div>
+          <b id="B_totalInterest">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Payment</div>
+          <b id="B_totalPayment">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Effective Annual Cost</div>
+          <b id="B_effective">—</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:12px"></div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1">
+      <div class="compare-bar" title="Lower is better">
+        <div class="compare-fill" id="compareFill"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <div class="small">Cheaper → Loan A</div>
+        <div class="small">Loan B → Cheaper</div>
+      </div>
+    </div>
+
+    <div style="width:280px;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="showSchedule('A')">Show A Schedule</button>
+      <button onclick="showSchedule('B')">Show B Schedule</button>
+    </div>
+  </div>
+
+
+  <div id="charts" style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px;background:var(--card);padding:10px;border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><b>EMI Breakdown (Selected)</b><div class="small">Principal vs Interest</div></div>
+        <select id="chartSelect" onchange="renderChart()"><option value="A">Loan A</option><option value="B">Loan B</option></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <canvas id="pie" width="220" height="220"></canvas>
+        <div style="flex:1">
+          <div class="small">Principal</div><div id="chartPrincipal" style="font-weight:700;font-size:18px">—</div>
+          <div class="small" style="margin-top:8px">Interest</div><div id="chartInterest" style="font-weight:700;font-size:18px">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:300px;min-width:260px;background:var(--card);padding:10px;border-radius:10px">
+      <b>Quick Summary</b>
+      <div class="small" style="margin-top:8px">Best Option</div>
+      <div id="bestBadge" style="font-size:18px;margin-top:6px">—</div>
+
+      <div style="height:10px"></div>
+      <div class="small">Export / Share</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="exportCSV()">Export CSV</button>
+        <button class="secondary" onclick="window.print()">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scheduleWrap" style="margin-top:14px"></div>
+
+  <footer>Tip: Use the "Flat" option only for lenders that explicitly quote flat interest. Reducing interest (EMI) is the typical case for most banks.</footer>
+</div>
+
+<div class="side">
+  <h3>How it works</h3>
+  <p class="small">This page calculates two common interest models:<br>
+    • <b>Flat</b> — interest calculated on original principal for full tenure.<br>
+    • <b>Reducing</b> — monthly EMI where interest charged on outstanding principal.<br>
+    • <b>Daily Reducing</b> — interest computed on daily outstanding balance (approximation).</p>
+
+  <h4 style="margin-top:12px">Notes</h4>
+  <ul class="small">
+    <li>Processing fee and extras are added to the cost but not to the principal for EMI computation.</li>
+    <li>Effective annual cost shows approximate annualized cost including fees.</li>
+    <li>Amortization schedule shows month-by-month principal & interest split for the selected loan.</li>
+  </ul>
+
+  <div style="height:12px"></div>
+  <b>Shortcuts</b>
+  <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+    <button class="secondary" onclick="setQuick('short')">Short Tenure (36m)</button>
+    <button class="secondary" onclick="setQuick('long')">Long Tenure (120m)</button>
+    <button class="secondary" onclick="setQuick('cheap')">Low rate (6%)</button>
+  </div>
+</div>
+
+  </div>  <script>
+    // Utility
+    const fmt = v => new Intl.NumberFormat('en-IN',{maximumFractionDigits:0}).format(Math.round(v));
+    const fmt2 = v => new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+
+    function getValues(prefix){
+      return {
+        P: Number(document.getElementById(prefix+'_principal').value)||0,
+        N: Number(document.getElementById(prefix+'_tenure').value)||0,
+        rate: Number(document.getElementById(prefix+'_rate').value)||0,
+        type: document.getElementById(prefix+'_type').value,
+        fee: Number(document.getElementById(prefix+'_fee').value)||0,
+        extra: Number(document.getElementById(prefix+'_extra').value)||0
+      }
+    }
+
+    function calcFlat(P,annualRate,months){
+      const years = months/12;
+      const totalInterest = P * (annualRate/100) * years;
+      const totalPayment = P + totalInterest;
+      const emi = totalPayment / months;
+      return {emi, totalInterest, totalPayment};
+    }
+
+    function calcReducing(P,annualRate,months){
+      if(months<=0) return {emi:0,totalInterest:0,totalPayment:0};
+      const r = annualRate/12/100;
+      if(r===0){
+        const emi = P / months;
+        return {emi, totalInterest:0, totalPayment:P};
+      }
+      const factor = Math.pow(1+r, months);
+      const emi = P * r * factor / (factor - 1);
+      const totalPayment = emi * months;
+      const totalInterest = totalPayment - P;
+      return {emi, totalInterest, totalPayment};
+    }
+
+    function calcDailyReducing(P,annualRate,months){
+      // approximate daily reducing by converting to a monthly effective method (approximation)
+      // We'll compute by simulating daily interest assuming 30-day month for simplicity
+      const days = Math.round(months * 30);
+      let outstanding = P;
+      const dailyRate = annualRate/365/100;
+      const monthlyPayments = months;
+      // approximate equal monthly repayment: compute by reducing method using monthly rate equal to (1+dailyRate)^30 -1
+      const monthlyRate = Math.pow(1+dailyRate,30)-1;
+      if(monthlyRate<=0){
+        const emi = P/months;
+        return {emi,totalInterest:0,totalPayment:P};
+      }
+      const factor = Math.pow(1+monthlyRate, months);
+      const emi = P * monthlyRate * factor / (factor - 1);
+      const totalPayment = emi * months;
+      const totalInterest = totalPayment - P;
+      return {emi,totalInterest,totalPayment};
+    }
+
+    function effectiveAnnualCost(totalCost, P, months){
+      const years = months/12;
+      if(P<=0||years<=0) return 0;
+      const annualized = ( (totalCost - P) / P ) / years * 100;
+      return annualized;
+    }
+
+    function calculate(prefix){
+      const v = getValues(prefix);
+      let res;
+      if(v.type==='flat') res = calcFlat(v.P,v.rate,v.N);
+      else if(v.type==='reducing') res = calcReducing(v.P,v.rate,v.N);
+      else res = calcDailyReducing(v.P,v.rate,v.N);
+
+      // add fees to total payment (but EMI remains calculated on principal)
+      const totalPaymentWithFees = res.totalPayment + v.fee + v.extra;
+      const totalInterestWithFees = (res.totalPayment - v.P) + v.fee + v.extra;
+      const effective = effectiveAnnualCost(totalPaymentWithFees, v.P, v.N);
+
+      return {...res, totalPaymentWithFees, totalInterestWithFees, effective, inputs:v};
+    }
+
+    function calculateAll(){
+      const A = calculate('A');
+      const B = calculate('B');
+
+      document.getElementById('A_emi').innerText = A.emi? '₹'+fmt2(A.emi) : '—';
+      document.getElementById('A_totalInterest').innerText = A.totalInterestWithFees? '₹'+fmt2(A.totalInterestWithFees) : '—';
+      document.getElementById('A_totalPayment').innerText = A.totalPaymentWithFees? '₹'+fmt2(A.totalPaymentWithFees) : '—';
+      document.getElementById('A_effective').innerText = A.effective? fmt2(A.effective)+' %' : '—';
+
+      document.getElementById('B_emi').innerText = B.emi? '₹'+fmt2(B.emi) : '—';
+      document.getElementById('B_totalInterest').innerText = B.totalInterestWithFees? '₹'+fmt2(B.totalInterestWithFees) : '—';
+      document.getElementById('B_totalPayment').innerText = B.totalPaymentWithFees? '₹'+fmt2(B.totalPaymentWithFees) : '—';
+      document.getElementById('B_effective').innerText = B.effective? fmt2(B.effective)+' %' : '—';
+
+      // comparison fill: compute relative cost (lower is better)
+      const aCost = A.totalPaymentWithFees || Infinity;
+      const bCost = B.totalPaymentWithFees || Infinity;
+      const total = aCost + bCost;
+      let pct = 0.5;
+      if(isFinite(total) && total>0){
+        pct = aCost / total; // proportion of fill from left
+      }
+      document.getElementById('compareFill').style.width = (pct*100) + '%';
+      // color: more green when A cheaper, else red-ish
+      const fill = document.getElementById('compareFill');
+      if(aCost < bCost){ fill.style.background = 'linear-gradient(90deg,var(--good),var(--accent))'; document.getElementById('bestBadge').innerText = 'Loan A — Cheaper'; }
+      else if(bCost < aCost){ fill.style.background = 'linear-gradient(90deg,var(--accent),var(--bad))'; document.getElementById('bestBadge').innerText = 'Loan B — Cheaper'; }
+      else { fill.style.background = 'linear-gradient(90deg,var(--accent),var(--accent))'; document.getElementById('bestBadge').innerText = 'Both similar'; }
+
+      // update chart
+      renderChart();
+    }
+
+    // amortization schedule for Reducing and approximate for flat
+    function buildSchedule(prefix){
+      const v = getValues(prefix);
+      const out = [];
+      if(v.N <= 0) return out;
+
+      if(v.type === 'flat'){
+        // interest distributed equally each month on flat method
+        const flat = calcFlat(v.P,v.rate,v.N);
+        const monthlyInterest = flat.totalInterest / v.N;
+        const monthlyPrincipal = v.P / v.N;
+        for(let m=1;m<=v.N;m++){
+          const interest = monthlyInterest;
+          const principal = monthlyPrincipal;
+          const emi = interest + principal;
+          const balance = Math.max(0, v.P - monthlyPrincipal*m);
+          out.push({m, emi, interest, principal, balance});
+        }
+      } else if(v.type === 'reducing' || v.type==='daily'){
+        let P = v.P;
+        const r = v.type==='daily' ? Math.pow(1+(v.rate/365/100),30)-1 : (v.rate/12/100);
+        const emi = (r===0) ? P / v.N : (P * r * Math.pow(1+r, v.N) / (Math.pow(1+r, v.N)-1));
+        for(let m=1;m<=v.N;m++){
+          const interest = P * r;
+          const principal = Math.max(0, emi - interest);
+          P = Math.max(0, P - principal);
+          out.push({m, emi, interest, principal, balance:P});
+        }
+      }
+
+      return out;
+    }
+
+    function showSchedule(prefix){
+      const sch = buildSchedule(prefix);
+      if(!sch.length){ document.getElementById('scheduleWrap').innerHTML = '<div class="small">No schedule to show. Fill values and click Calculate.</div>'; return; }
+      let html = '<div style="background:var(--card);padding:10px;border-radius:10px">';
+      html += '<h3>Amortization Schedule — Loan '+prefix+'</h3>';
+      html += '<div style="overflow:auto;max-height:340px">';
+      html += '<table><thead><tr><th>Month</th><th>EMI</th><th>Interest</th><th>Principal</th><th>Balance</th></tr></thead><tbody>';
+      for(const r of sch){
+        html += `<tr><td style=\"text-align:left\">${r.m}</td><td>₹${fmt2(r.emi)}</td><td>₹${fmt2(r.interest)}</td><td>₹${fmt2(r.principal)}</td><td>₹${fmt2(r.balance)}</td></tr>`;
+      }
+      html += '</tbody></table></div></div>';
+      document.getElementById('scheduleWrap').innerHTML = html;
+    }
+
+    // Chart rendering (simple pie)
+    function renderChart(){
+      const sel = document.getElementById('chartSelect').value;
+      const data = calculate(sel);
+      const principal = data.inputs.P;
+      const interest = (data.totalPayment - data.inputs.P) || 0;
+      const canvas = document.getElementById('pie');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const total = Math.max(1, principal + interest);
+      const a = principal/total * Math.PI*2;
+      // draw principal
+      let cx = canvas.width/2, cy = canvas.height/2, r = Math.min(cx,cy)-6;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,0,a); ctx.closePath(); ctx.fillStyle='rgba(96,165,250,0.9)'; ctx.fill();
+      // draw interest
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a,Math.PI*2); ctx.closePath(); ctx.fillStyle='rgba(99,102,241,0.9)'; ctx.fill();
+
+      document.getElementById('chartPrincipal').innerText = '₹'+fmt2(principal)+' ('+Math.round((principal/total)*100)+'%)';
+      document.getElementById('chartInterest').innerText = '₹'+fmt2(interest)+' ('+Math.round((interest/total)*100)+'%)';
+    }
+
+    // Export CSV of schedules & summary
+    function exportCSV(){
+      const A = calculate('A');
+      const B = calculate('B');
+      let csv = 'Loan,EMI,Total Interest (incl fees),Total Payment (incl fees),Effective Annual Cost\n';
+      csv += `A,${fmt2(A.emi)},${fmt2(A.totalInterestWithFees)},${fmt2(A.totalPaymentWithFees)},${fmt2(A.effective)}%\n`;
+      csv += `B,${fmt2(B.emi)},${fmt2(B.totalInterestWithFees)},${fmt2(B.totalPaymentWithFees)},${fmt2(B.effective)}%\n\n`;
+
+      // attach schedules
+      const sA = buildSchedule('A');
+      const sB = buildSchedule('B');
+      if(sA.length){ csv += 'Schedule A\nMonth,EMI,Interest,Principal,Balance\n'; for(const r of sA) csv += `${r.m},${fmt2(r.emi)},${fmt2(r.interest)},${fmt2(r.principal)},${fmt2(r.balance)}\n`; csv += '\n'; }
+      if(sB.length){ csv += 'Schedule B\nMonth,EMI,Interest,Principal,Balance\n'; for(const r of sB) csv += `${r.m},${fmt2(r.emi)},${fmt2(r.interest)},${fmt2(r.principal)},${fmt2(r.balance)}\n`; csv += '\n'; }
+
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'loan-compare.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // helper shortcuts
+    function setQuick(kind){
+      if(kind==='short'){ document.getElementById('A_tenure').value = 36; document.getElementById('B_tenure').value = 36; }
+      if(kind==='long'){ document.getElementById('A_tenure').value = 120; document.getElementById('B_tenure').value = 120; }
+      if(kind==='cheap'){ document.getElementById('A_rate').value = 6; document.getElementById('B_rate').value = 6; }
+      calculateAll();
+    }
+
+    function fillExample(prefix){
+      if(prefix==='A'){ document.getElementById('A_principal').value=500000; document.getElementById('A_rate').value=8.5; document.getElementById('A_tenure').value=60; document.getElementById('A_type').value='reducing'; document.getElementById('A_fee').value=2000; }
+      if(prefix==='B'){ document.getElementById('B_principal').value=500000; document.getElementById('B_rate').value=9.5; document.getElementById('B_tenure').value=60; document.getElementById('B_type').value='flat'; document.getElementById('B_fee').value=1500; }
+      calculateAll();
+    }
+
+    // init
+    calculateAll();
+  </script></body>
+</html><!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LoanCompare — Single Page Loan Comparison</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa6b2; --accent:#60a5fa; --good:#34d399; --bad:#fb7185; --glass: rgba(255,255,255,0.03);
+      --radius:12px; --gap:14px; font-family: Inter, system-ui, Segoe UI, Roboto, 'Helvetica Neue', Arial;
+    }
+    html,body{height:100%;}
+    body{margin:0;background:linear-gradient(180deg,#071029 0%, #07182b 60%);color:#e6f0f6;padding:28px;box-sizing:border-box}
+    h1{font-size:20px;margin:0 0 6px}
+    p.lead{color:var(--muted);margin:0 0 18px}.wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
+
+.main{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:18px;border-radius:var(--radius);box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+.side{background:var(--card);padding:18px;border-radius:var(--radius);box-shadow:0 6px 20px rgba(2,6,23,0.4)}
+
+.cards{display:flex;gap:12px;flex-wrap:wrap}
+.loan-card{flex:1 1 320px;background:var(--glass);padding:12px;border-radius:10px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+input[type=text], input[type=number], select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;box-sizing:border-box}
+.row{display:flex;gap:10px}
+.row > *{flex:1}
+.controls{display:flex;gap:8px;margin-top:8px}
+button{background:var(--accent);border:none;padding:10px 12px;border-radius:10px;color:#042036;cursor:pointer;font-weight:600}
+button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+.result{margin-top:14px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px}
+.tile b{display:block;font-size:18px}
+.compare-bar{height:18px;border-radius:9px;background:rgba(255,255,255,0.03);overflow:hidden;margin-top:12px}
+.compare-fill{height:100%;width:50%;background:linear-gradient(90deg,var(--good),var(--accent));}
+
+.small{font-size:12px;color:var(--muted)}
+
+table{width:100%;border-collapse:collapse;margin-top:10px}
+table th, table td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:right}
+table th{text-align:left;color:var(--muted);font-size:12px}
+
+.chart{display:flex;gap:8px;align-items:center}
+canvas{background:transparent}
+
+footer{margin-top:16px;color:var(--muted);font-size:12px}
+
+/* responsive */
+@media (max-width:1000px){.wrap{grid-template-columns:1fr;}}
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="main">
+      <h1>LoanCompare — Compare two loans instantly</h1>
+      <p class="lead">Enter loan details for each card. Supports Flat and Reducing (EMI) interest. Shows EMI, total interest, amortization schedule and a visual comparison.</p><div class="cards">
+    <div class="loan-card" id="cardA">
+      <h3>Loan A</h3>
+      <label>Principal (₹)</label>
+      <input type="number" id="A_principal" value="500000" min="0">
+
+      <div style="height:8px"></div>
+      <div class="row">
+        <div>
+          <label>Tenure</label>
+          <input type="number" id="A_tenure" value="60" min="1">
+          <div class="small">months</div>
+        </div>
+        <div>
+          <label>Interest Rate (%)</label>
+          <input type="number" id="A_rate" value="8.5" step="0.01" min="0">
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+      <label>Interest Type</label>
+      <select id="A_type">
+        <option value="reducing">Reducing (EMI)</option>
+        <option value="flat">Flat</option>
+        <option value="daily">Daily Reducing</option>
+      </select>
+
+      <div style="height:8px"></div>
+      <label>Processing fee (₹)</label>
+      <input type="number" id="A_fee" value="2000">
+
+      <div style="height:8px"></div>
+      <label>Insurance / Extra charges (₹)</label>
+      <input type="number" id="A_extra" value="0">
+
+      <div class="controls">
+        <button onclick="calculateAll()">Calculate</button>
+        <button class="secondary" onclick="fillExample('A')">Example</button>
+      </div>
+
+      <div class="result" id="A_result">
+        <div class="tile">
+          <div class="small">EMI / Monthly</div>
+          <b id="A_emi">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Interest</div>
+          <b id="A_totalInterest">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Payment</div>
+          <b id="A_totalPayment">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Effective Annual Cost</div>
+          <b id="A_effective">—</b>
+        </div>
+      </div>
+    </div>
+
+    <div class="loan-card" id="cardB">
+      <h3>Loan B</h3>
+      <label>Principal (₹)</label>
+      <input type="number" id="B_principal" value="500000" min="0">
+
+      <div style="height:8px"></div>
+      <div class="row">
+        <div>
+          <label>Tenure</label>
+          <input type="number" id="B_tenure" value="60" min="1">
+          <div class="small">months</div>
+        </div>
+        <div>
+          <label>Interest Rate (%)</label>
+          <input type="number" id="B_rate" value="9.5" step="0.01" min="0">
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+      <label>Interest Type</label>
+      <select id="B_type">
+        <option value="reducing">Reducing (EMI)</option>
+        <option value="flat">Flat</option>
+        <option value="daily">Daily Reducing</option>
+      </select>
+
+      <div style="height:8px"></div>
+      <label>Processing fee (₹)</label>
+      <input type="number" id="B_fee" value="1500">
+
+      <div style="height:8px"></div>
+      <label>Insurance / Extra charges (₹)</label>
+      <input type="number" id="B_extra" value="0">
+
+      <div class="controls">
+        <button onclick="calculateAll()">Calculate</button>
+        <button class="secondary" onclick="fillExample('B')">Example</button>
+      </div>
+
+      <div class="result" id="B_result">
+        <div class="tile">
+          <div class="small">EMI / Monthly</div>
+          <b id="B_emi">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Interest</div>
+          <b id="B_totalInterest">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Total Payment</div>
+          <b id="B_totalPayment">—</b>
+        </div>
+        <div class="tile">
+          <div class="small">Effective Annual Cost</div>
+          <b id="B_effective">—</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:12px"></div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div style="flex:1">
+      <div class="compare-bar" title="Lower is better">
+        <div class="compare-fill" id="compareFill"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <div class="small">Cheaper → Loan A</div>
+        <div class="small">Loan B → Cheaper</div>
+      </div>
+    </div>
+
+    <div style="width:280px;display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="showSchedule('A')">Show A Schedule</button>
+      <button onclick="showSchedule('B')">Show B Schedule</button>
+    </div>
+  </div>
+
+
+  <div id="charts" style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px;background:var(--card);padding:10px;border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><b>EMI Breakdown (Selected)</b><div class="small">Principal vs Interest</div></div>
+        <select id="chartSelect" onchange="renderChart()"><option value="A">Loan A</option><option value="B">Loan B</option></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <canvas id="pie" width="220" height="220"></canvas>
+        <div style="flex:1">
+          <div class="small">Principal</div><div id="chartPrincipal" style="font-weight:700;font-size:18px">—</div>
+          <div class="small" style="margin-top:8px">Interest</div><div id="chartInterest" style="font-weight:700;font-size:18px">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:300px;min-width:260px;background:var(--card);padding:10px;border-radius:10px">
+      <b>Quick Summary</b>
+      <div class="small" style="margin-top:8px">Best Option</div>
+      <div id="bestBadge" style="font-size:18px;margin-top:6px">—</div>
+
+      <div style="height:10px"></div>
+      <div class="small">Export / Share</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="exportCSV()">Export CSV</button>
+        <button class="secondary" onclick="window.print()">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scheduleWrap" style="margin-top:14px"></div>
+
+  <footer>Tip: Use the "Flat" option only for lenders that explicitly quote flat interest. Reducing interest (EMI) is the typical case for most banks.</footer>
+</div>
+
+<div class="side">
+  <h3>How it works</h3>
+  <p class="small">This page calculates two common interest models:<br>
+    • <b>Flat</b> — interest calculated on original principal for full tenure.<br>
+    • <b>Reducing</b> — monthly EMI where interest charged on outstanding principal.<br>
+    • <b>Daily Reducing</b> — interest computed on daily outstanding balance (approximation).</p>
+
+  <h4 style="margin-top:12px">Notes</h4>
+  <ul class="small">
+    <li>Processing fee and extras are added to the cost but not to the principal for EMI computation.</li>
+    <li>Effective annual cost shows approximate annualized cost including fees.</li>
+    <li>Amortization schedule shows month-by-month principal & interest split for the selected loan.</li>
+  </ul>
+
+  <div style="height:12px"></div>
+  <b>Shortcuts</b>
+  <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+    <button class="secondary" onclick="setQuick('short')">Short Tenure (36m)</button>
+    <button class="secondary" onclick="setQuick('long')">Long Tenure (120m)</button>
+    <button class="secondary" onclick="setQuick('cheap')">Low rate (6%)</button>
+  </div>
+</div>
+
+  </div>  <script>
+    // Utility
+    const fmt = v => new Intl.NumberFormat('en-IN',{maximumFractionDigits:0}).format(Math.round(v));
+    const fmt2 = v => new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+
+    function getValues(prefix){
+      return {
+        P: Number(document.getElementById(prefix+'_principal').value)||0,
+        N: Number(document.getElementById(prefix+'_tenure').value)||0,
+        rate: Number(document.getElementById(prefix+'_rate').value)||0,
+        type: document.getElementById(prefix+'_type').value,
+        fee: Number(document.getElementById(prefix+'_fee').value)||0,
+        extra: Number(document.getElementById(prefix+'_extra').value)||0
+      }
+    }
+
+    function calcFlat(P,annualRate,months){
+      const years = months/12;
+      const totalInterest = P * (annualRate/100) * years;
+      const totalPayment = P + totalInterest;
+      const emi = totalPayment / months;
+      return {emi, totalInterest, totalPayment};
+    }
+
+    function calcReducing(P,annualRate,months){
+      if(months<=0) return {emi:0,totalInterest:0,totalPayment:0};
+      const r = annualRate/12/100;
+      if(r===0){
+        const emi = P / months;
+        return {emi, totalInterest:0, totalPayment:P};
+      }
+      const factor = Math.pow(1+r, months);
+      const emi = P * r * factor / (factor - 1);
+      const totalPayment = emi * months;
+      const totalInterest = totalPayment - P;
+      return {emi, totalInterest, totalPayment};
+    }
+
+    function calcDailyReducing(P,annualRate,months){
+      // approximate daily reducing by converting to a monthly effective method (approximation)
+      // We'll compute by simulating daily interest assuming 30-day month for simplicity
+      const days = Math.round(months * 30);
+      let outstanding = P;
+      const dailyRate = annualRate/365/100;
+      const monthlyPayments = months;
+      // approximate equal monthly repayment: compute by reducing method using monthly rate equal to (1+dailyRate)^30 -1
+      const monthlyRate = Math.pow(1+dailyRate,30)-1;
+      if(monthlyRate<=0){
+        const emi = P/months;
+        return {emi,totalInterest:0,totalPayment:P};
+      }
+      const factor = Math.pow(1+monthlyRate, months);
+      const emi = P * monthlyRate * factor / (factor - 1);
+      const totalPayment = emi * months;
+      const totalInterest = totalPayment - P;
+      return {emi,totalInterest,totalPayment};
+    }
+
+    function effectiveAnnualCost(totalCost, P, months){
+      const years = months/12;
+      if(P<=0||years<=0) return 0;
+      const annualized = ( (totalCost - P) / P ) / years * 100;
+      return annualized;
+    }
+
+    function calculate(prefix){
+      const v = getValues(prefix);
+      let res;
+      if(v.type==='flat') res = calcFlat(v.P,v.rate,v.N);
+      else if(v.type==='reducing') res = calcReducing(v.P,v.rate,v.N);
+      else res = calcDailyReducing(v.P,v.rate,v.N);
+
+      // add fees to total payment (but EMI remains calculated on principal)
+      const totalPaymentWithFees = res.totalPayment + v.fee + v.extra;
+      const totalInterestWithFees = (res.totalPayment - v.P) + v.fee + v.extra;
+      const effective = effectiveAnnualCost(totalPaymentWithFees, v.P, v.N);
+
+      return {...res, totalPaymentWithFees, totalInterestWithFees, effective, inputs:v};
+    }
+
+    function calculateAll(){
+      const A = calculate('A');
+      const B = calculate('B');
+
+      document.getElementById('A_emi').innerText = A.emi? '₹'+fmt2(A.emi) : '—';
+      document.getElementById('A_totalInterest').innerText = A.totalInterestWithFees? '₹'+fmt2(A.totalInterestWithFees) : '—';
+      document.getElementById('A_totalPayment').innerText = A.totalPaymentWithFees? '₹'+fmt2(A.totalPaymentWithFees) : '—';
+      document.getElementById('A_effective').innerText = A.effective? fmt2(A.effective)+' %' : '—';
+
+      document.getElementById('B_emi').innerText = B.emi? '₹'+fmt2(B.emi) : '—';
+      document.getElementById('B_totalInterest').innerText = B.totalInterestWithFees? '₹'+fmt2(B.totalInterestWithFees) : '—';
+      document.getElementById('B_totalPayment').innerText = B.totalPaymentWithFees? '₹'+fmt2(B.totalPaymentWithFees) : '—';
+      document.getElementById('B_effective').innerText = B.effective? fmt2(B.effective)+' %' : '—';
+
+      // comparison fill: compute relative cost (lower is better)
+      const aCost = A.totalPaymentWithFees || Infinity;
+      const bCost = B.totalPaymentWithFees || Infinity;
+      const total = aCost + bCost;
+      let pct = 0.5;
+      if(isFinite(total) && total>0){
+        pct = aCost / total; // proportion of fill from left
+      }
+      document.getElementById('compareFill').style.width = (pct*100) + '%';
+      // color: more green when A cheaper, else red-ish
+      const fill = document.getElementById('compareFill');
+      if(aCost < bCost){ fill.style.background = 'linear-gradient(90deg,var(--good),var(--accent))'; document.getElementById('bestBadge').innerText = 'Loan A — Cheaper'; }
+      else if(bCost < aCost){ fill.style.background = 'linear-gradient(90deg,var(--accent),var(--bad))'; document.getElementById('bestBadge').innerText = 'Loan B — Cheaper'; }
+      else { fill.style.background = 'linear-gradient(90deg,var(--accent),var(--accent))'; document.getElementById('bestBadge').innerText = 'Both similar'; }
+
+      // update chart
+      renderChart();
+    }
+
+    // amortization schedule for Reducing and approximate for flat
+    function buildSchedule(prefix){
+      const v = getValues(prefix);
+      const out = [];
+      if(v.N <= 0) return out;
+
+      if(v.type === 'flat'){
+        // interest distributed equally each month on flat method
+        const flat = calcFlat(v.P,v.rate,v.N);
+        const monthlyInterest = flat.totalInterest / v.N;
+        const monthlyPrincipal = v.P / v.N;
+        for(let m=1;m<=v.N;m++){
+          const interest = monthlyInterest;
+          const principal = monthlyPrincipal;
+          const emi = interest + principal;
+          const balance = Math.max(0, v.P - monthlyPrincipal*m);
+          out.push({m, emi, interest, principal, balance});
+        }
+      } else if(v.type === 'reducing' || v.type==='daily'){
+        let P = v.P;
+        const r = v.type==='daily' ? Math.pow(1+(v.rate/365/100),30)-1 : (v.rate/12/100);
+        const emi = (r===0) ? P / v.N : (P * r * Math.pow(1+r, v.N) / (Math.pow(1+r, v.N)-1));
+        for(let m=1;m<=v.N;m++){
+          const interest = P * r;
+          const principal = Math.max(0, emi - interest);
+          P = Math.max(0, P - principal);
+          out.push({m, emi, interest, principal, balance:P});
+        }
+      }
+
+      return out;
+    }
+
+    function showSchedule(prefix){
+      const sch = buildSchedule(prefix);
+      if(!sch.length){ document.getElementById('scheduleWrap').innerHTML = '<div class="small">No schedule to show. Fill values and click Calculate.</div>'; return; }
+      let html = '<div style="background:var(--card);padding:10px;border-radius:10px">';
+      html += '<h3>Amortization Schedule — Loan '+prefix+'</h3>';
+      html += '<div style="overflow:auto;max-height:340px">';
+      html += '<table><thead><tr><th>Month</th><th>EMI</th><th>Interest</th><th>Principal</th><th>Balance</th></tr></thead><tbody>';
+      for(const r of sch){
+        html += `<tr><td style=\"text-align:left\">${r.m}</td><td>₹${fmt2(r.emi)}</td><td>₹${fmt2(r.interest)}</td><td>₹${fmt2(r.principal)}</td><td>₹${fmt2(r.balance)}</td></tr>`;
+      }
+      html += '</tbody></table></div></div>';
+      document.getElementById('scheduleWrap').innerHTML = html;
+    }
+
+    // Chart rendering (simple pie)
+    function renderChart(){
+      const sel = document.getElementById('chartSelect').value;
+      const data = calculate(sel);
+      const principal = data.inputs.P;
+      const interest = (data.totalPayment - data.inputs.P) || 0;
+      const canvas = document.getElementById('pie');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const total = Math.max(1, principal + interest);
+      const a = principal/total * Math.PI*2;
+      // draw principal
+      let cx = canvas.width/2, cy = canvas.height/2, r = Math.min(cx,cy)-6;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,0,a); ctx.closePath(); ctx.fillStyle='rgba(96,165,250,0.9)'; ctx.fill();
+      // draw interest
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a,Math.PI*2); ctx.closePath(); ctx.fillStyle='rgba(99,102,241,0.9)'; ctx.fill();
+
+      document.getElementById('chartPrincipal').innerText = '₹'+fmt2(principal)+' ('+Math.round((principal/total)*100)+'%)';
+      document.getElementById('chartInterest').innerText = '₹'+fmt2(interest)+' ('+Math.round((interest/total)*100)+'%)';
+    }
+
+    // Export CSV of schedules & summary
+    function exportCSV(){
+      const A = calculate('A');
+      const B = calculate('B');
+      let csv = 'Loan,EMI,Total Interest (incl fees),Total Payment (incl fees),Effective Annual Cost\n';
+      csv += `A,${fmt2(A.emi)},${fmt2(A.totalInterestWithFees)},${fmt2(A.totalPaymentWithFees)},${fmt2(A.effective)}%\n`;
+      csv += `B,${fmt2(B.emi)},${fmt2(B.totalInterestWithFees)},${fmt2(B.totalPaymentWithFees)},${fmt2(B.effective)}%\n\n`;
+
+      // attach schedules
+      const sA = buildSchedule('A');
+      const sB = buildSchedule('B');
+      if(sA.length){ csv += 'Schedule A\nMonth,EMI,Interest,Principal,Balance\n'; for(const r of sA) csv += `${r.m},${fmt2(r.emi)},${fmt2(r.interest)},${fmt2(r.principal)},${fmt2(r.balance)}\n`; csv += '\n'; }
+      if(sB.length){ csv += 'Schedule B\nMonth,EMI,Interest,Principal,Balance\n'; for(const r of sB) csv += `${r.m},${fmt2(r.emi)},${fmt2(r.interest)},${fmt2(r.principal)},${fmt2(r.balance)}\n`; csv += '\n'; }
+
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'loan-compare.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // helper shortcuts
+    function setQuick(kind){
+      if(kind==='short'){ document.getElementById('A_tenure').value = 36; document.getElementById('B_tenure').value = 36; }
+      if(kind==='long'){ document.getElementById('A_tenure').value = 120; document.getElementById('B_tenure').value = 120; }
+      if(kind==='cheap'){ document.getElementById('A_rate').value = 6; document.getElementById('B_rate').value = 6; }
+      calculateAll();
+    }
+
+    function fillExample(prefix){
+      if(prefix==='A'){ document.getElementById('A_principal').value=500000; document.getElementById('A_rate').value=8.5; document.getElementById('A_tenure').value=60; document.getElementById('A_type').value='reducing'; document.getElementById('A_fee').value=2000; }
+      if(prefix==='B'){ document.getElementById('B_principal').value=500000; document.getElementById('B_rate').value=9.5; document.getElementById('B_tenure').value=60; document.getElementById('B_type').value='flat'; document.getElementById('B_fee').value=1500; }
+      calculateAll();
+    }
+
+    // init
+    calculateAll();
+  </script></body>
+</html>
